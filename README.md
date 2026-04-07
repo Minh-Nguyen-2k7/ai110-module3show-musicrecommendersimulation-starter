@@ -87,6 +87,23 @@ You can add more tests in `tests/test_recommender.py`.
 
 ![Terminal output showing top 5 recommendations](assets/terminal_output.png)
 
+### Profile Results
+
+**High-Energy Pop**
+![High-Energy Pop profile results](assets/profile_2.png)
+
+**Chill Lofi**
+![Chill Lofi profile results](assets/profile_3.png)
+
+**Deep Intense Rock**
+![Deep Intense Rock profile results](assets/profile_4.png)
+
+**Conflicting: Lofi + High Energy (Edge Case)**
+![Conflicting Lofi High Energy profile results](assets/profile_5.png)
+
+**Unknown Genre — Classical (Edge Case)**
+![Unknown Genre Classical profile results](assets/profile_6.png)
+
 ---
 
 ## Experiments You Tried
@@ -119,10 +136,17 @@ Read and complete `model_card.md`:
 
 [**Model Card**](model_card.md)
 
-Write 1 to 2 paragraphs here about what you learned:
+### Profile Comparisons
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
+- **High-Energy Pop vs. Chill Lofi** — They are completely opposite top results. Pop profile surfaces fast happy songs, while lofi profile surfaces slow chill beats. Both score near-perfect (0.98–0.99) because all three key features aligned, confirming the scoring works as intended to the system.
+
+- **High-Energy Pop vs. Deep Intense Rock** — Both want high energy, but the genre splits the rankings. Pop gets Sunrise City; Rock gets Storm Runner. Gym Hero appears in both top 3s because strong energy similarity bridges the genre gap when mood overlaps.
+
+- **Deep Intense Rock vs. Conflicting: Lofi + High Energy** — Rock profile scores 0.99; the conflicting profile peaks at 0.52. The genre weight forces lofi songs to the top even though none match the requested high energy, which expose the filter bubble problem directly.
+
+- **Chill Lofi vs. Unknown Genre (Classical)** — Lofi gets near-perfect matches because the genre is well-represented. Classical is a bit weird: one real genre match, then falls back on mood alone, showing the system loses signal when a genre is rare.
+
+- **Conflicting: Lofi + High Energy vs. Unknown Genre (Classical)** — Both edge cases fail for different reasons: one has self-contradicting preferences, the other has an underrepresented genre. Neither user gets a truly satisfying recommendation.
 
 
 ---

@@ -38,12 +38,25 @@ class Recommender:
         self.songs = songs
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        # TODO: Implement recommendation logic
-        return self.songs[:k]
+        """Score all songs against the user profile and return the top k Songs."""
+        prefs = {
+            "genre": user.favorite_genre,
+            "mood": user.favorite_mood,
+            "energy": user.target_energy,
+        }
+        scored = [(song, score_song(prefs, vars(song))[0]) for song in self.songs]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [song for song, _ in scored[:k]]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        # TODO: Implement explanation logic
-        return "Explanation placeholder"
+        """Return a human-readable string explaining why a song was recommended."""
+        prefs = {
+            "genre": user.favorite_genre,
+            "mood": user.favorite_mood,
+            "energy": user.target_energy,
+        }
+        score, reasons = score_song(prefs, vars(song))
+        return f"Score {score:.2f} — " + ", ".join(reasons)
 
 def load_songs(csv_path: str) -> List[Dict]:
     """Read songs.csv and return a list of song dicts with typed fields."""
@@ -67,65 +80,39 @@ def load_songs(csv_path: str) -> List[Dict]:
     return songs
 
 def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """
-    Scores a single song against user preferences.
-    Required by recommend_songs() and src/main.py
-    """
-    # TODO: Implement scoring logic using your Algorithm Recipe from Phase 2.
-    # Expected return format: (score, reasons)
-    return []
-
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """Score every song against user_prefs using weighted genre/mood/energy/tempo and return the top k."""
-    # Weights
-    W_GENRE  = 0.4
+    """Score a single song against user_prefs and return (score, reasons)."""
+    W_GENRE  = 0.4  # experiment: 0.2 (halved)
     W_MOOD   = 0.3
-    W_ENERGY = 0.2
+    W_ENERGY = 0.2  # experiment: 0.4 (doubled)
     W_TEMPO  = 0.1
-
-    # Min-Max tempo bounds derived from the catalog
     TEMPO_MIN = 60.0
     TEMPO_MAX = 160.0
 
-    # Normalize the user's target tempo (if provided) to 0-1
-    u_tempo_norm = (user_prefs.get("tempo_bpm", 110.0) - TEMPO_MIN) / (TEMPO_MAX - TEMPO_MIN)
+    reasons = []
 
+    genre_match = 1.0 if song["genre"] == user_prefs.get("genre", "") else 0.0
+    reasons.append(f"genre match (+{W_GENRE:.1f})" if genre_match else "genre mismatch (+0.0)")
+
+    mood_match = 1.0 if song["mood"] == user_prefs.get("mood", "") else 0.0
+    reasons.append(f"mood match (+{W_MOOD:.1f})" if mood_match else "mood mismatch (+0.0)")
+
+    energy_sim = 1.0 - abs(song["energy"] - user_prefs.get("energy", 0.5))
+    reasons.append(f"energy similarity {energy_sim:.2f} (+{W_ENERGY * energy_sim:.2f})")
+
+    u_tempo_norm = (user_prefs.get("tempo_bpm", 110.0) - TEMPO_MIN) / (TEMPO_MAX - TEMPO_MIN)
+    tempo_norm = (song["tempo_bpm"] - TEMPO_MIN) / (TEMPO_MAX - TEMPO_MIN)
+    tempo_sim = 1.0 - abs(tempo_norm - u_tempo_norm)
+    reasons.append(f"tempo similarity {tempo_sim:.2f} (+{W_TEMPO * tempo_sim:.2f})")
+
+    score = (W_GENRE * genre_match + W_MOOD * mood_match
+           + W_ENERGY * energy_sim + W_TEMPO * tempo_sim)
+    return score, reasons
+
+def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
+    """Score every song against user_prefs using weighted genre/mood/energy/tempo and return the top k."""
     scored = []
     for song in songs:
-        reasons = []
-
-        # Genre match (categorical: 0 or 1)
-        genre_match = 1.0 if song["genre"] == user_prefs.get("genre", "") else 0.0
-        if genre_match:
-            reasons.append(f"genre match (+{W_GENRE:.1f})")
-        else:
-            reasons.append(f"genre mismatch (+0.0)")
-
-        # Mood match (categorical: 0 or 1)
-        mood_match = 1.0 if song["mood"] == user_prefs.get("mood", "") else 0.0
-        if mood_match:
-            reasons.append(f"mood match (+{W_MOOD:.1f})")
-        else:
-            reasons.append(f"mood mismatch (+0.0)")
-
-        # Energy similarity (1 - abs difference, so closer = higher)
-        energy_sim = 1.0 - abs(song["energy"] - user_prefs.get("energy", 0.5))
-        reasons.append(f"energy similarity {energy_sim:.2f} (+{W_ENERGY * energy_sim:.2f})")
-
-        # Tempo similarity: normalize song tempo then compare
-        tempo_norm = (song["tempo_bpm"] - TEMPO_MIN) / (TEMPO_MAX - TEMPO_MIN)
-        tempo_sim = 1.0 - abs(tempo_norm - u_tempo_norm)
-        reasons.append(f"tempo similarity {tempo_sim:.2f} (+{W_TEMPO * tempo_sim:.2f})")
-
-        # Weighted final score
-        score = (W_GENRE  * genre_match
-               + W_MOOD   * mood_match
-               + W_ENERGY * energy_sim
-               + W_TEMPO  * tempo_sim)
-
-        explanation = ", ".join(reasons)
-        scored.append((song, score, explanation))
-
-    # Sort highest score first, return top k
+        score, reasons = score_song(user_prefs, song)
+        scored.append((song, score, ", ".join(reasons)))
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored[:k]
